@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "diagnostics-for-physics"
+version = "0.1.0"
+description = "Diagnostic consistency tests for learned PDE time propagators"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {file = "LICENSE"}
+authors = [
+  {name = "Lennon J. Shikhman"}
+]
+keywords = [
+  "learned PDE simulator",
+  "neural operator",
+  "diagnostic consistency",
+  "evolution operator",
+  "semigroup consistency",
+  "generator discrepancy"
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Topic :: Scientific/Engineering :: Physics",
+  "Topic :: Scientific/Engineering :: Mathematics"
+]
+dependencies = [
+  "numpy>=1.23",
+  "pandas>=1.5",
+  "h5py>=3.8",
+  "torch>=2.0"
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=7",
+  "ruff>=0.5",
+  "build>=1.0"
+]
+
+[project.scripts]
+diagnostic-suite = "diagnostic_suite.cli:main"
+diagnostics-for-physics = "diagnostic_suite.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+diagnostic_suite = ["py.typed"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
