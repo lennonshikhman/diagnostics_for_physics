@@ -58,7 +58,7 @@ source highlights changed paragraphs/environments in blue, RGB 0,70,170,
 against the archived reviewed manuscript. Clean and marked text are checked
 for equivalence after compilation.
 
-The supplementary version 0.3.1 analysis reads the original checkpoints without
+The supplementary version 0.3.2 analysis reads the original checkpoints without
 retraining. Extract the controlled and external training artifacts, then run:
 
     python scripts/analyze_rollout_revision.py --root /path/to/controlled --device cuda

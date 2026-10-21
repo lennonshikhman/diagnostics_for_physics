@@ -93,15 +93,14 @@ def main():
     ceiling = max(adv["baseline_l2"], adv["composition_l2"])
     sentence = (
         f"An accuracy-matched advection comparison has state errors below {(int(ceiling * 10) + 1) / 10:.1f}\\% "
-        f"with a semigroup-error ratio of {ratio[0]:.2f} (95\\% interval {ratio[1]:.2f}--{ratio[2]:.2f}); "
-        "unsuccessful matching cases are retained. "
+        f"and a semigroup-error ratio of {ratio[0]:.2f} (95\\% interval {ratio[1]:.2f}--{ratio[2]:.2f}). "
     )
     contrasts_path = paper / "revision_evidence/rollout/rollout_contrasts.json"
     if contrasts_path.exists():
         contrast = next(row for row in json.loads(contrasts_path.read_text()) if row["problem"] == "advection1d")
         long_ratio = contrast["ratios_supervised_over_composition"]["full_4T"]
         if long_ratio["status"] == "available" and long_ratio["high"] < 1:
-            sentence += "Supplementary rollouts retain a counterexample to interpreting smaller semigroup error as better forecast accuracy. "
+            sentence += "The composition penalty lowers semigroup error but increases composed-state and longer-rollout prediction error. "
     (generated / "controlled_abstract.tex").write_text(sentence + r"\ignorespaces" + "\n")
     locations_file = paper / (args.locations_document + ".aux")
     if locations_file.exists():
@@ -113,6 +112,10 @@ def main():
         ]
         (generated / "review_locations.tex").write_text("\n".join(lines) + "\n")
         changes = [
+            (
+                "Prose revision: direct result statements, shorter motivation, consolidated limitations and precise terminology",
+                ["sec:introduction", "sec:related_work", "sec:learned", "sec:external_results", "sec:limitations"],
+            ),
             (
                 "R2.3: composed-state error, both rollout partitions and descriptive correlations",
                 ["sec:rollout", "tab:rollout", "tab:rollout_half"],
@@ -167,8 +170,7 @@ def main():
             f"the current environment uses {runtime(current)}, with Python {current['python']}. "
             "Both installations passed the analytic self-check, 16 referee checks, nine sensitivity checks, "
             "public examples, the manufactured balance/constraint script, and a four-model CPU training/resume check. "
-            "Resume preserved all completed checkpoint bytes. These are tested environments, not a claim of "
-            "compatibility with every later dependency or platform.\n"
+            "Resume preserved all completed checkpoint bytes.\n"
         )
         (generated / "release_validation.tex").write_text(text.replace("_", r"\_"))
         referee = args.validation_minimum / "referee"

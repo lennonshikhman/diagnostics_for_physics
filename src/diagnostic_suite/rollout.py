@@ -79,8 +79,8 @@ def spearman_rows(first: np.ndarray, second: np.ndarray) -> np.ndarray:
         raise ValueError("Rank-correlation arrays must have equal shapes")
     if not np.array_equal(np.isnan(first), np.isnan(second)):
         raise ValueError("Checkpoint padding must agree between paired arrays")
-    a = pd.DataFrame(first).rank(axis=1, method="average").to_numpy()
-    b = pd.DataFrame(second).rank(axis=1, method="average").to_numpy()
+    a = pd.DataFrame(first).rank(axis=1, method="average").to_numpy(copy=True)
+    b = pd.DataFrame(second).rank(axis=1, method="average").to_numpy(copy=True)
     a -= np.nanmean(a, axis=1, keepdims=True)
     b -= np.nanmean(b, axis=1, keepdims=True)
     denominator = np.sqrt(np.nansum(a * a, axis=1) * np.nansum(b * b, axis=1))

@@ -294,10 +294,8 @@ def report(frame, outdir, generated, seeds, replicates):
             f"state errors {100 * a['composed_T']['mean']:.3f}\\% and {100 * b['composed_T']['mean']:.3f}\\%, respectively. "
             f"Their full-step \\(4T\\) rollout errors are {100 * a['full_4T']['mean']:.3f}\\% and "
             f"{100 * b['full_4T']['mean']:.3f}\\%; the supervised/composition ratio is \\({formatted(ratio, 1)}\\). "
-            "Thus the smaller semigroup error in the matched composition arm does not establish better "
-            "physical-state accuracy under composition or longer rollout. The intervention directly optimizes "
-            "a composition penalty; it demonstrates a change in temporal self-consistency, not a general "
-            "forecasting benefit. Failed matching cases in the other equations remain included.\n"
+            "The composition penalty lowers disagreement between time partitions while increasing both "
+            "composed-state and longer-rollout error. The supervised arm gives the more accurate forecast.\n"
         )
         (generated / "rollout_interpretation.tex").write_text(text)
         (generated / "rollout_response.tex").write_text(text)
@@ -307,12 +305,12 @@ def report(frame, outdir, generated, seeds, replicates):
             label = NAMES.get(row["problem"], "Pooled equations")
             assoc_lines.append(f"{label}: \\(\\rho={formatted(row, 1)}\\)")
     (generated / "rollout_association_text.tex").write_text(
-        "The descriptive rank associations between semigroup error and full-step \\(4T\\) rollout error are "
+        "Spearman correlations between semigroup error and full-step \\(4T\\) rollout error are "
         + "; ".join(assoc_lines)
-        + ". These associations pool training arms and selections within the audited "
-        "checkpoints, with aliases of identical weights counted once. The pooled coefficient can reflect "
-        "equation differences; neither it nor within-equation associations establish predictive performance "
-        "for unseen models. All \\(2T\\), \\(4T\\), and half-step coefficients are archived.\n"
+        + ". The heat and Burgers intervals cross zero. The larger pooled coefficient combines "
+        "within-equation association with differences between equations. These descriptive correlations "
+        "summarize the audited checkpoints; prediction for unseen models would require a separate test. "
+        "All \\(2T\\), \\(4T\\), and half-step coefficients are archived.\n"
     )
     return summaries, contrasts
 

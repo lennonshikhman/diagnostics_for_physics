@@ -66,3 +66,24 @@ def test_spearman_handles_ties_padding_and_constant_vectors():
     assert result[0] == pytest.approx(1)
     assert np.isnan(result[1])
     assert spearman_rows([1, 2, 3], [3, 2, 1])[0] == pytest.approx(-1)
+
+
+def test_spearman_accepts_readonly_pandas_exports(monkeypatch):
+    import pandas as pd
+
+    export = pd.DataFrame.to_numpy
+
+    def export_with_readonly_views(frame, *args, **kwargs):
+        values = export(frame, *args, **kwargs)
+        if not kwargs.get("copy", False):
+            values.setflags(write=False)
+        return values
+
+    monkeypatch.setattr(pd.DataFrame, "to_numpy", export_with_readonly_views)
+    first = np.array([1.0, 1.0, 3.0])
+    second = np.array([6.0, 6.0, 2.0])
+    first.setflags(write=False)
+    second.setflags(write=False)
+    np.testing.assert_allclose(spearman_rows(first, second), [-1.0])
+    np.testing.assert_array_equal(first, [1.0, 1.0, 3.0])
+    np.testing.assert_array_equal(second, [6.0, 6.0, 2.0])

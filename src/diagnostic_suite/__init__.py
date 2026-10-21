@@ -3,7 +3,7 @@
 from .constants import EPS
 from .tasks import BalanceSpec, ConstraintSpec, TaskSpec, build_all_task_specs, build_task_specs
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 _LAZY_EXPORTS = {
     "AutoregressivePropagator": ("diagnostic_suite.propagators", "AutoregressivePropagator"),

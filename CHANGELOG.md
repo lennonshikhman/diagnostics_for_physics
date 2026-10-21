@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.2
+
+- Copy ranked arrays before centering so Spearman analysis works with pandas
+  copy-on-write exports; add a read-only-array regression. Numerical results
+  are unchanged.
+- Tighten generated manuscript prose while retaining the reported numerical
+  results, failed matching cases, and supplementary rollout outcomes.
+
 ## 0.3.1
 
 - Require an explicit periodic boundary policy when constructing a smoothing

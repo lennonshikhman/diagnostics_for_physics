@@ -1,6 +1,6 @@
 # Diagnostics for Physics
 
-Python package for diagnostic consistency testing of learned PDE time propagators. Version 0.3.1 accompanies the revised Computer Physics Communications manuscript.
+Python package for diagnostic consistency testing of learned PDE time propagators. Version 0.3.2 accompanies the revised Computer Physics Communications manuscript.
 
 `diagnostic_suite` evaluates learned PDE simulators as approximate **time-propagation operators**, not only as predictors of discretized state fields. The package provides a lightweight public API, a command-line interface, toy dataset generation, benchmark readers, neural surrogate baselines, diagnostic metrics, tests, and reproducibility scripts.
 

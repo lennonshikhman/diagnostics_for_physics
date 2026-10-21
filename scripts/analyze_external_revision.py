@@ -155,7 +155,7 @@ def main():
             rows_all,
             long=True,
             label="tab:external_all",
-            caption="All supported architectures and variants at horizon two, mean and sample standard deviation across three seeds. State and SG are percentages; other columns are dimensionless. Standard and short budgets do not assert convergence. Raw records preserve all three horizons.",
+            caption="All supported architectures and variants at horizon two, mean and sample standard deviation across three seeds. State and SG are percentages; other columns are dimensionless. Raw records preserve all three horizons.",
         )
     )
     (generated / "external_constraints.tex").write_text(
@@ -188,12 +188,11 @@ def main():
             ),
         }
     interpretation = (
-        r"The regenerated application contains 531 per-seed/horizon records: 486 learned-model/variant records and 45 reference records. "
-        r"Every declared task, supported architecture, variant, seed, and horizon is present; applicable numerical values are finite. "
-        r"These bounded training runs include appreciable errors and are used as software applications, not as the low-error evidence for temporal inconsistency. "
-        r"That evidence comes from Section~\ref{sec:learned}. "
-        r"The appendix reports all supported architectures at horizon two; the archived CSV retains horizons one, two, and four. "
-        r"Reference generator, balance, and constraint residuals accompany each comparison. A reduced divergence or generator discrepancy can also arise from smoothing and is not, by itself, improved physical accuracy."
+        r"The application contains 531 per-seed/horizon records: 486 learned-model/variant records and 45 reference records. "
+        r"All declared task, architecture, variant, seed, and horizon combinations are present, with finite applicable values. "
+        r"State errors are appreciably larger than in the controlled study. "
+        r"Appendix~\ref{app:extended} reports every supported architecture at horizon two; the CSV retains horizons one, two, and four. "
+        r"Reference generator, balance, and constraint residuals provide baselines for the physical comparisons."
         "\n"
     )
     (generated / "external_interpretation.tex").write_text(interpretation)

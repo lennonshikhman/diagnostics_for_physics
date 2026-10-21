@@ -195,12 +195,9 @@ def main():
         f"respectively. Their semigroup errors are {adv['baseline_semigroup']:.3f}\\% and {adv['composition_semigroup']:.3f}\\%, "
         f"a reduction factor {adv['semigroup_reduction'][0]:.2f} "
         f"(95\\% interval [{adv['semigroup_reduction'][1]:.2f},{adv['semigroup_reduction'][2]:.2f}]). "
-        f"This is a low-error comparison, unlike the historical active-matter example with errors near 0.7. "
         f"Heat has {heat['eligible_seeds']}/5 eligible seeds; Burgers has {burgers['eligible_seeds']}/5. "
-        f"Those failed criteria remain visible. In particular, the Burgers composition arm trades prediction accuracy "
-        f"against its targeted structural loss and is not described as an accuracy-matched success. "
-        f"All best-validation arms and fluctuation errors remain in Table~\\ref{{tab:controlled}}; "
-        f"a nonsignificant accuracy difference is not interpreted as proof of equivalence.\n"
+        f"The Burgers composition arm increases prediction error as it reduces its penalized composition residual. "
+        f"Table~\\ref{{tab:controlled}} reports the best-validation checkpoints and fluctuation errors for every arm.\n"
     )
     (generated / "controlled_interpretation.tex").write_text(text)
     (generated / "controlled_response.tex").write_text(
