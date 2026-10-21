@@ -105,34 +105,3 @@ def make_toy_data(
     np.save(out / "val.npy", build_split(n_val))
     np.save(out / "test.npy", build_split(n_test))
     return out
-
-
-def make_periodic_advection(
-    n_traj: int = 8,
-    n_time: int = 5,
-    size: int = 32,
-    channels: int = 1,
-    seed: int = 0,
-) -> np.ndarray:
-    """Return an in-memory toy trajectory array with shape ``(N,T,H,W,C)``.
-
-    This convenience helper is intended for API smoke tests. For CLI-compatible
-    files, use :func:`make_toy_data`.
-    """
-    rng = np.random.default_rng(seed)
-    x = np.linspace(0.0, 2.0 * np.pi, size, endpoint=False)
-    X, Y = np.meshgrid(x, x, indexing="ij")
-    data = np.zeros((n_traj, n_time, size, size, channels), dtype=np.float32)
-    for i in range(n_traj):
-        kx = int(rng.integers(1, 4))
-        ky = int(rng.integers(1, 4))
-        phase = float(rng.uniform(0, 2 * np.pi))
-        vx = float(rng.uniform(0.15, 0.35))
-        vy = float(rng.uniform(0.10, 0.30))
-        amp = float(rng.uniform(0.5, 1.5))
-        for t in range(n_time):
-            field = amp * np.sin(kx * (X - vx * t) + ky * (Y - vy * t) + phase)
-            data[i, t, :, :, 0] = field
-            for c in range(1, channels):
-                data[i, t, :, :, c] = np.cos((c + 1) * field)
-    return data.astype(np.float32, copy=False)

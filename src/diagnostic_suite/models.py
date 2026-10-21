@@ -44,21 +44,25 @@ def _group_count(channels: int, max_groups: int = 8) -> int:
     return 1
 
 
-def avg_pool_nd(x: torch.Tensor, dim: int, kernel: int = 3) -> torch.Tensor:
+def avg_pool_nd(x: torch.Tensor, dim: int, kernel: int = 3, *, padding_mode: str = "replicate") -> torch.Tensor:
+    """Channelwise box filter with explicit boundary extension and unit stride."""
+    if kernel < 1 or kernel % 2 != 1:
+        raise ValueError("The smoothing kernel must have a positive odd size")
+    if padding_mode not in {"replicate", "circular"}:
+        raise ValueError("Smoothing padding must be replicate or circular")
     pad = kernel // 2
     if dim == 1:
-        return F.avg_pool1d(F.pad(x, (pad, pad), mode="replicate"), kernel, stride=1)
+        return F.avg_pool1d(F.pad(x, (pad, pad), mode=padding_mode), kernel, stride=1)
     if dim == 2:
-        return F.avg_pool2d(F.pad(x, (pad, pad, pad, pad), mode="replicate"), kernel, stride=1)
+        return F.avg_pool2d(F.pad(x, (pad, pad, pad, pad), mode=padding_mode), kernel, stride=1)
     if dim == 3:
-        return F.avg_pool3d(F.pad(x, (pad, pad, pad, pad, pad, pad), mode="replicate"), kernel, stride=1)
+        return F.avg_pool3d(F.pad(x, (pad, pad, pad, pad, pad, pad), mode=padding_mode), kernel, stride=1)
     raise ValueError(dim)
 
 
 def coordinate_grid_like(x: torch.Tensor) -> torch.Tensor:
     """Return normalized coordinate channels with shape (B, dim, *spatial)."""
     spatial = tuple(int(n) for n in x.shape[2:])
-    dim = len(spatial)
     axes = [torch.linspace(0.0, 1.0, n, device=x.device, dtype=x.dtype) for n in spatial]
     mesh = torch.meshgrid(*axes, indexing="ij")
     grid = torch.stack(mesh, dim=0).unsqueeze(0)
@@ -71,7 +75,11 @@ def add_tau_channel(x: torch.Tensor, tau: torch.Tensor) -> torch.Tensor:
     if tau.ndim > 1:
         tau = tau.view(tau.shape[0])
     spatial = x.shape[2:]
-    t = tau.to(device=x.device, dtype=x.dtype).view(x.shape[0], 1, *([1] * len(spatial))).expand(x.shape[0], 1, *spatial)
+    t = (
+        tau.to(device=x.device, dtype=x.dtype)
+        .view(x.shape[0], 1, *([1] * len(spatial)))
+        .expand(x.shape[0], 1, *spatial)
+    )
     return torch.cat([x, t], dim=1)
 
 
@@ -188,10 +196,12 @@ class SpectralConvND(nn.Module):
         self.out_ch = out_ch
         self.sign_corners = [()] if dim == 1 else list(np.ndindex(*([2] * (dim - 1))))
         scale = 1.0 / math.sqrt(max(1, in_ch * out_ch))
-        self.weights = nn.ParameterList([
-            nn.Parameter(scale * torch.randn(in_ch, out_ch, *self.modes, dtype=torch.cfloat))
-            for _ in self.sign_corners
-        ])
+        self.weights = nn.ParameterList(
+            [
+                nn.Parameter(scale * torch.randn(in_ch, out_ch, *self.modes, dtype=torch.cfloat))
+                for _ in self.sign_corners
+            ]
+        )
 
     def _mode_counts(self, xft_shape: Sequence[int]) -> Tuple[int, ...]:
         # xft_shape is the transformed spatial shape after rfftn.
@@ -247,7 +257,16 @@ class FNOBlock(nn.Module):
 
 
 class FNO(nn.Module):
-    def __init__(self, dim: int, in_channels: int, out_channels: int, width: int, modes: int, layers: int = 4, dropout: float = 0.0):
+    def __init__(
+        self,
+        dim: int,
+        in_channels: int,
+        out_channels: int,
+        width: int,
+        modes: int,
+        layers: int = 4,
+        dropout: float = 0.0,
+    ):
         super().__init__()
         Conv = conv_cls(dim)
         self.dim = dim
@@ -285,20 +304,21 @@ class UpBlock(nn.Module):
 
 
 class UNetND(nn.Module):
-    def __init__(self, dim: int, in_channels: int, out_channels: int, width: int, levels: int = 4, dropout: float = 0.0):
+    def __init__(
+        self, dim: int, in_channels: int, out_channels: int, width: int, levels: int = 4, dropout: float = 0.0
+    ):
         super().__init__()
         if levels < 2:
             raise ValueError("UNetND needs at least two levels")
         Conv = conv_cls(dim)
         self.dim = dim
-        feats = [width * (2 ** i) for i in range(levels)]
+        feats = [width * (2**i) for i in range(levels)]
         self.stem = ResidualConvBlock(dim, in_channels + 1 + dim, feats[0], dropout=dropout)
         self.downs = nn.ModuleList([DownBlock(dim, feats[i], feats[i + 1], dropout=dropout) for i in range(levels - 1)])
         self.bottleneck = ResidualConvBlock(dim, feats[-1], feats[-1], dropout=dropout)
-        self.ups = nn.ModuleList([
-            UpBlock(dim, feats[i], feats[i - 1], feats[i - 1], dropout=dropout)
-            for i in range(levels - 1, 0, -1)
-        ])
+        self.ups = nn.ModuleList(
+            [UpBlock(dim, feats[i], feats[i - 1], feats[i - 1], dropout=dropout) for i in range(levels - 1, 0, -1)]
+        )
         self.out = Conv(feats[0], out_channels, 1)
 
     def forward(self, x: torch.Tensor, tau: torch.Tensor) -> torch.Tensor:
@@ -335,10 +355,12 @@ class ResNetSurrogate(nn.Module):
         self.predict_residual = predict_residual and (in_channels == out_channels)
         self.stem = ResidualConvBlock(dim, in_channels + 1 + dim, width, dropout=dropout)
         dilations = [1, 2, 4, 8]
-        self.blocks = nn.ModuleList([
-            ResidualConvBlock(dim, width, width, dilation=dilations[i % len(dilations)], dropout=dropout)
-            for i in range(blocks)
-        ])
+        self.blocks = nn.ModuleList(
+            [
+                ResidualConvBlock(dim, width, width, dilation=dilations[i % len(dilations)], dropout=dropout)
+                for i in range(blocks)
+            ]
+        )
         self.head = nn.Sequential(
             Conv(width, width, 1),
             nn.GELU(),
@@ -381,18 +403,29 @@ class DeepONet(nn.Module):
         self.spatial_shape = tuple(int(n) for n in spatial_shape)
         self.latent = int(latent)
 
-        branch_feats = [width * (2 ** i) for i in range(branch_levels)]
+        branch_feats = [width * (2**i) for i in range(branch_levels)]
         self.branch_stem = ResidualConvBlock(dim, in_channels + 1 + dim, branch_feats[0], dropout=dropout)
-        self.branch_downs = nn.ModuleList([
-            DownBlock(dim, branch_feats[i], branch_feats[i + 1], dropout=dropout)
-            for i in range(branch_levels - 1)
-        ])
+        self.branch_downs = nn.ModuleList(
+            [DownBlock(dim, branch_feats[i], branch_feats[i + 1], dropout=dropout) for i in range(branch_levels - 1)]
+        )
         Pool = adaptive_avg_pool_cls(dim)
         self.branch_pool = Pool(1)
-        self.branch_head = MLP(branch_feats[-1], out_channels * self.latent, hidden_dim=max(2 * width, self.latent), layers=3, dropout=dropout)
+        self.branch_head = MLP(
+            branch_feats[-1],
+            out_channels * self.latent,
+            hidden_dim=max(2 * width, self.latent),
+            layers=3,
+            dropout=dropout,
+        )
 
         self.coord_features = FourierFeatures(dim + 1, num_frequencies=fourier_frequencies, include_input=True)
-        self.trunk = MLP(self.coord_features.out_dim, self.latent, hidden_dim=max(2 * width, self.latent), layers=trunk_layers, dropout=dropout)
+        self.trunk = MLP(
+            self.coord_features.out_dim,
+            self.latent,
+            hidden_dim=max(2 * width, self.latent),
+            layers=trunk_layers,
+            dropout=dropout,
+        )
         self.bias = nn.Parameter(torch.zeros(out_channels))
 
     def _default_coords(self, b: int, device: torch.device, dtype: torch.dtype) -> torch.Tensor:
@@ -400,14 +433,18 @@ class DeepONet(nn.Module):
         grid = torch.stack(torch.meshgrid(*axes, indexing="ij"), dim=-1).reshape(-1, self.dim)
         return grid.view(1, grid.shape[0], self.dim).expand(b, -1, -1)
 
-    def _prepare_coords(self, b: int, query_coords: Optional[torch.Tensor], device: torch.device, dtype: torch.dtype) -> Tuple[torch.Tensor, bool]:
+    def _prepare_coords(
+        self, b: int, query_coords: Optional[torch.Tensor], device: torch.device, dtype: torch.dtype
+    ) -> Tuple[torch.Tensor, bool]:
         if query_coords is None:
             return self._default_coords(b, device, dtype), True
         coords = query_coords.to(device=device, dtype=dtype)
         if coords.ndim == 2:
             coords = coords.view(1, coords.shape[0], coords.shape[1]).expand(b, -1, -1)
         if coords.ndim != 3 or coords.shape[0] != b or coords.shape[-1] != self.dim:
-            raise ValueError(f"query_coords must have shape (N,{self.dim}) or (B,N,{self.dim}); got {tuple(coords.shape)}")
+            raise ValueError(
+                f"query_coords must have shape (N,{self.dim}) or (B,N,{self.dim}); got {tuple(coords.shape)}"
+            )
         return coords, False
 
     def forward(self, x: torch.Tensor, tau: torch.Tensor, query_coords: Optional[torch.Tensor] = None) -> torch.Tensor:
@@ -440,20 +477,36 @@ DeepONetLite = DeepONet
 
 
 class OversmoothWrapper(nn.Module):
-    def __init__(self, base: nn.Module, dim: int, passes: int = 2):
+    """Apply a 3**dim box filter after each base-model call.
+
+    The CLI uses circular extension for periodic tasks and replicated extension
+    otherwise. Direct construction requires the boundary policy explicitly.
+    Spatial resolution, channels, and the trained base weights are unchanged.
+    """
+
+    def __init__(self, base: nn.Module, dim: int, passes: int = 2, *, periodic: bool):
         super().__init__()
+        if dim not in {1, 2, 3}:
+            raise ValueError("Smoothing dimension must be one, two, or three")
+        if not isinstance(passes, int) or passes < 0:
+            raise ValueError("Smoothing passes must be a nonnegative integer")
+        if not isinstance(periodic, bool):
+            raise ValueError("periodic must be an explicit boolean boundary policy")
         self.base = base
         self.dim = dim
         self.passes = passes
+        self.padding_mode = "circular" if periodic else "replicate"
 
     def forward(self, x: torch.Tensor, tau: torch.Tensor) -> torch.Tensor:
         y = self.base(x, tau)
         for _ in range(self.passes):
-            y = avg_pool_nd(y, self.dim, 3)
+            y = avg_pool_nd(y, self.dim, 3, padding_mode=self.padding_mode)
         return y
 
 
-def build_model(model_name: str, dim: int, channels: int, spatial_shape: Tuple[int, ...], width: int, modes: int) -> nn.Module:
+def build_model(
+    model_name: str, dim: int, channels: int, spatial_shape: Tuple[int, ...], width: int, modes: int
+) -> nn.Module:
     # Keep models substantial but avoid pathological memory blowups on 3D grids.
     unet_levels = 4 if min(spatial_shape) >= 32 else 3
     if model_name == "fno":
@@ -465,5 +518,3 @@ def build_model(model_name: str, dim: int, channels: int, spatial_shape: Tuple[i
     if model_name == "deeponet":
         return DeepONet(dim, channels, channels, width=width, latent=max(2 * width, 64), spatial_shape=spatial_shape)
     raise ValueError(f"Unknown model {model_name}")
-
-

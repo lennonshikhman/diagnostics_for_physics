@@ -9,6 +9,7 @@ diagnostic-suite \
   --data-root "$DATA_ROOT" \
   --tasks toy2d \
   --models fno unet resnet \
+  --eval-horizons 1 2 4 \
   --smoke \
   --device cpu \
   --outdir "$OUTDIR"

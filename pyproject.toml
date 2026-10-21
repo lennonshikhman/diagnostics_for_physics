@@ -1,14 +1,15 @@
 [build-system]
-requires = ["setuptools>=68", "wheel"]
+requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "diagnostics-for-physics"
-version = "0.1.0"
+version = "0.3.1"
 description = "Diagnostic consistency tests for learned PDE time propagators"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {file = "LICENSE"}
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [
   {name = "Lennon J. Shikhman"}
 ]
@@ -23,7 +24,6 @@ keywords = [
 classifiers = [
   "Development Status :: 3 - Alpha",
   "Intended Audience :: Science/Research",
-  "License :: OSI Approved :: MIT License",
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
@@ -33,22 +33,34 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Mathematics"
 ]
 dependencies = [
-  "numpy>=1.23",
-  "pandas>=1.5",
+  "numpy>=1.23.5",
+  "pandas>=1.5.3",
   "h5py>=3.8",
-  "torch>=2.0"
+  "torch>=2.0.1"
 ]
 
 [project.optional-dependencies]
+revision = ["matplotlib", "pdfplumber", "Pillow"]
 dev = [
   "pytest>=7",
-  "ruff>=0.5",
+  "ruff==0.16.6",
   "build>=1.0"
 ]
 
 [project.scripts]
 diagnostic-suite = "diagnostic_suite.cli:main"
 diagnostics-for-physics = "diagnostic_suite.cli:main"
+diagnostic-suite-tables = "diagnostic_suite.tables:main"
+diagnostic-suite-progress = "diagnostic_suite.progress:main"
+diagnostic-suite-referee = "diagnostic_suite.referee:main"
+diagnostic-suite-sensitivity = "diagnostic_suite.sensitivity:main"
+diagnostic-suite-controlled = "diagnostic_suite.controlled:main"
+
+[project.urls]
+Homepage = "https://github.com/lennonshikhman/diagnostics_for_physics"
+Repository = "https://github.com/lennonshikhman/diagnostics_for_physics"
+Documentation = "https://github.com/lennonshikhman/diagnostics_for_physics/tree/main/docs"
+Issues = "https://github.com/lennonshikhman/diagnostics_for_physics/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -63,3 +75,6 @@ addopts = "-q"
 [tool.ruff]
 line-length = 120
 target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]

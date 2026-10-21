@@ -1,0 +1,21 @@
+/A_Diagnostic_Software_Suite_for_Auditing_Learned_PDE_Simulators (2).pdf
+/PAPER/
+
+# Python/build artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+.ipynb_checkpoints/
+
+# Local environments and benchmark outputs
+.venv/
+venv/
+outputs*/
+checkpoints/

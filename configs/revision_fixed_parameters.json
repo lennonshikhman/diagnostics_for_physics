@@ -1,0 +1,24 @@
+{
+  "selection_rule": "Lexicographically first basename common to the official train, valid, and test directories; chosen before training or evaluating models.",
+  "parameters": {
+    "active2d": {
+      "L": "10.0",
+      "alpha": "-2.0",
+      "dataset_name": "active_matter",
+      "grid_type": "cartesian",
+      "n_spatial_dims": "2",
+      "n_trajectories": "3",
+      "simulation_parameters": "['L' 'zeta' 'alpha']",
+      "zeta": "11.0"
+    },
+    "mhd3d": {
+      "Ma": "0.7",
+      "Ms": "0.5",
+      "dataset_name": "MHD_64",
+      "grid_type": "cartesian",
+      "n_spatial_dims": "3",
+      "n_trajectories": "5",
+      "simulation_parameters": "['Ma' 'Ms']"
+    }
+  }
+}

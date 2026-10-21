@@ -2,12 +2,19 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from diagnostic_suite.data import PairDataset, TrajectoryCollection, WindowDataset
+import numpy as np
+import torch
+from torch.utils.data import DataLoader
+
+from diagnostic_suite.data import (
+    PairDataset,
+    TrajectoryCollection,
+    WindowDataset,
+    assert_disjoint_collections,
+)
 from diagnostic_suite.evaluate import evaluate_reference
 from diagnostic_suite.tasks import build_task_specs
 from diagnostic_suite.toy import make_toy_data
-import torch
-from torch.utils.data import DataLoader
 
 
 def test_toy_data_roundtrip(tmp_path: Path) -> None:
@@ -20,6 +27,9 @@ def test_toy_data_roundtrip(tmp_path: Path) -> None:
     item = pair_ds[0]
     assert item["x"].shape[0] == 1
     assert item["x"].shape == item["y"].shape
+    val = TrajectoryCollection(tmp_path, task, "val", spatial_limit=16)
+    test = TrajectoryCollection(tmp_path, task, "test", spatial_limit=16)
+    assert_disjoint_collections(coll, val, test)
 
 
 def test_reference_evaluation_on_toy(tmp_path: Path) -> None:
@@ -30,5 +40,6 @@ def test_reference_evaluation_on_toy(tmp_path: Path) -> None:
     loader = DataLoader(windows, batch_size=2)
     metrics = evaluate_reference(loader, task, max_delta=2, device=torch.device("cpu"))
     assert metrics["rel_l2"] == 0.0
-    assert metrics["semigroup"] == 0.0
+    assert np.isnan(metrics["semigroup"])
+    assert metrics["semigroup_available"] is False
     assert metrics["generator_n"] > 0

@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import torch
 
 from .data import PairDataset
+
 
 @dataclass
 class Normalizer:
@@ -46,5 +46,3 @@ def estimate_normalizer(dataset: PairDataset, n_samples: int = 256) -> Normalize
     var = sums2 / max(1, count) - mean * mean
     std = torch.sqrt(torch.clamp(var, min=1e-6))
     return Normalizer(mean.float(), std.float())
-
-

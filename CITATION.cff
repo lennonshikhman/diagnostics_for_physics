@@ -5,9 +5,11 @@ type: software
 authors:
   - family-names: Shikhman
     given-names: Lennon J.
-version: 0.1.0
-date-released: 2026-06-12
+version: 0.3.1
+date-released: 2026-10-21
 license: MIT
+repository-code: "https://github.com/lennonshikhman/diagnostics_for_physics"
+url: "https://github.com/lennonshikhman/diagnostics_for_physics"
 keywords:
   - learned PDE simulator
   - neural operator
@@ -17,7 +19,7 @@ keywords:
   - generator discrepancy
 references:
   - type: article
-    title: "Diagnostic Metrics for Learned PDE Simulators Beyond Relative Error"
+    title: "A Diagnostic Software Suite for Auditing Learned PDE Simulators"
     authors:
       - family-names: Shikhman
         given-names: Lennon J.

@@ -1,7 +1,10 @@
 # Software statement
 
-This repository provides the implementation used to evaluate diagnostic
-consistency tests for learned PDE time propagators.
+This repository provides diagnostic consistency tests for learned PDE time
+propagators. Version 0.3.1 accompanies the manuscript revision. Independent
+analytic/manufactured checks, a five-seed controlled learned-model study, and
+regenerated fixed-parameter external applications provide separate evidence.
+Historical tables are not reassigned to changed implementations.
 
 ## Scope
 
@@ -20,10 +23,11 @@ reference numerical solvers.
   - semigroup consistency;
   - finite-difference generator discrepancy;
   - energy-law violation;
-  - energy-decay error;
-  - integral-balance error;
-  - constraint/admissibility error;
-  - scaling-law hook where an exact relation is configured.
+  - reference-energy error;
+  - control-volume flux/source balance and separately reported global drift;
+  - explicitly named equation-specific constraint/admissibility errors;
+  - perturbation-response error from paired perturbed simulations;
+  - configurable scaling-law error.
 - Training, evaluation, checkpointing, and CSV summary generation.
 - Lightweight public API for users with their own arrays/tensors.
 
@@ -37,3 +41,14 @@ The generator discrepancy is a finite-time diagnostic. Reference trajectories
 can have nonzero generator discrepancy at finite stored time spacing, so the
 analysis reports reference-normalized generator ratios when comparing learned
 models.
+
+Shared benchmark files are partitioned by deterministic trajectory indices, and
+the runner proves train/validation/test disjointness before fitting a normalizer
+or model. Channel names, grid spacing, time step, split identities, run arguments,
+Git revision, dependency versions, and optional dataset hashes are persisted with
+each result package.
+
+Resume always checks full data hashes before reuse, as well as installed source,
+task metadata, split membership, and numerical dependencies. A failed applicable
+metric aborts the audit. Only explicitly unavailable diagnostics may contain
+missing values. Float64 API inputs are preserved.

@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - python-version: "3.10"
+            dependencies: minimum
+          - python-version: "3.12"
+            dependencies: current
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+      - name: Install build and test tools
+        run: python -m pip install --upgrade pip build pytest ruff==0.16.6
+      - name: Install minimum supported dependencies
+        if: matrix.dependencies == 'minimum'
+        run: python -m pip install 'torch==2.0.1+cpu' --extra-index-url https://download.pytorch.org/whl/cpu 'numpy==1.23.5' 'pandas==1.5.3' 'h5py==3.8.0'
+      - name: Install current CPU dependencies
+        if: matrix.dependencies == 'current'
+        run: |
+          python -m pip install numpy pandas h5py filelock typing-extensions sympy networkx jinja2 fsspec
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Static checks
+        run: |
+          python -m ruff check src tests examples scripts
+          python -m ruff format --check src tests examples scripts
+      - name: Build and inspect distributions
+        run: |
+          python -m build
+          python scripts/check_distributions.py dist
+      - name: Install the wheel
+        run: python -m pip install --no-deps dist/*.whl
+      - name: Test installed package outside checkout
+        run: |
+          cd "$RUNNER_TEMP"
+          python -m pytest "$GITHUB_WORKSPACE/tests" -c "$GITHUB_WORKSPACE/pyproject.toml"
+          diagnostic-suite --version
+          diagnostic-suite --self-check
+          diagnostic-suite-referee --outdir referee
+          python "$GITHUB_WORKSPACE/examples/api_demo.py"
+          python "$GITHUB_WORKSPACE/examples/callable_propagator_demo.py"
+      - name: Exercise CLI training integration
+        run: |
+          cd "$RUNNER_TEMP"
+          diagnostic-suite --make-toy --data-root data --toy-grid 16 --toy-steps 6
+          diagnostic-suite --data-root data --tasks toy2d --models fno deeponet unet resnet --smoke --device cpu --resume --outdir toy_smoke
+          diagnostic-suite --data-root data --tasks toy2d --models fno deeponet unet resnet --smoke --device cpu --resume --outdir toy_smoke
+      - uses: actions/upload-artifact@v4
+        with:
+          name: referee-${{ matrix.python-version }}-${{ matrix.dependencies }}
+          path: |
+            dist/*
+            ${{ runner.temp }}/referee/*
+            ${{ runner.temp }}/toy_smoke/metrics_summary.csv
+            ${{ runner.temp }}/toy_smoke/provenance.json

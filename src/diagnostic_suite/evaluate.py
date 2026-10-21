@@ -1,18 +1,126 @@
+"""Evaluation loops shared by the command-line benchmark runner.
+
+The public tensor/callable API lives in :mod:`diagnostic_suite.api`.  This module
+adds model normalization and trajectory-window bookkeeping without changing the
+scientific definitions in :mod:`diagnostic_suite.metrics`.
+"""
+
 from __future__ import annotations
 
-from typing import Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
 
-from .constants import EPS
+from .metrics import (
+    BASE_METRIC_NAMES,
+    batch_tau,
+    constraint_errors,
+    energy_law_error,
+    energy_reference_error,
+    generator_discrepancy,
+    global_conserved_quantity_drift,
+    integral_balance_error,
+    metric_names_for_task,
+    rel_l2,
+    scaling_law_error,
+    semigroup_error,
+    summarize_metric_rows,
+)
 from .normalization import Normalizer
 from .tasks import TaskSpec
-from .metrics import (
-    METRIC_NAMES, batch_tau, constraint_error, energy, integral_balance_error,
-    rel_l2, summarize_metric_rows,
-)
+
+Applicability = Dict[str, Tuple[bool, str]]
+
+
+def _empty_rows(task: TaskSpec) -> Dict[str, List[float]]:
+    return {name: [] for name in metric_names_for_task(task)}
+
+
+def _append(rows: Dict[str, List[float]], name: str, values: torch.Tensor) -> None:
+    rows.setdefault(name, []).extend(values.detach().cpu().reshape(-1).tolist())
+
+
+def _append_unavailable(rows: Dict[str, List[float]], name: str, batch_size: int) -> None:
+    rows.setdefault(name, []).extend([float("nan")] * batch_size)
+
+
+def _base_applicability(task: TaskSpec) -> Applicability:
+    constraint_names = [name for name in metric_names_for_task(task) if name not in BASE_METRIC_NAMES]
+    energy_defined = task.energy_type != "none" or task.energy_callback is not None
+    energy_law_defined = task.energy_law in {"conservative", "dissipative"}
+    balance_defined = task.balance is not None
+    global_quantity_defined = balance_defined or task.balance_channel is not None
+    scaling_defined = task.scaling_transform is not None or task.scaling == "linear_amplitude"
+    output: Applicability = {
+        "rel_l2": (True, ""),
+        "semigroup": (True, ""),
+        "generator": (True, ""),
+        "energy_violation": (
+            energy_law_defined,
+            "" if energy_law_defined else "No conservative or dissipative energy law is configured.",
+        ),
+        "energy_reference_error": (
+            energy_defined,
+            "" if energy_defined else "No energy functional is configured.",
+        ),
+        "integral_balance": (
+            balance_defined,
+            "" if balance_defined else "No conserved quantity, flux, and source contract is configured.",
+        ),
+        "global_conserved_drift": (
+            global_quantity_defined,
+            "" if global_quantity_defined else "No conserved quantity is configured.",
+        ),
+        "constraint": (
+            len(constraint_names) == 1,
+            ""
+            if len(constraint_names) == 1
+            else "No physical constraint is configured."
+            if not constraint_names
+            else "Multiple constraints are reported separately; no heterogeneous composite is defined.",
+        ),
+        "perturbation_response": (
+            False,
+            "Paired perturbed reference trajectories are not present in this benchmark dataset.",
+        ),
+        "scaling_law": (
+            scaling_defined,
+            "" if scaling_defined else "No exact scaling transformation is configured.",
+        ),
+    }
+    for name in constraint_names:
+        output[name] = (True, "")
+    return output
+
+
+def _predict(
+    model: nn.Module,
+    normalizer: Normalizer,
+    state: torch.Tensor,
+    horizon: int,
+    max_delta: int,
+    device: torch.device,
+) -> torch.Tensor:
+    tau = batch_tau(state.shape[0], float(horizon) / float(max_delta), device)
+    return normalizer.decode(model(normalizer.encode(state), tau))
+
+
+def _validate_horizon(sequence_length: int, horizon: Optional[int], max_delta: int) -> int:
+    selected = min(2, sequence_length - 1, max_delta) if horizon is None else int(horizon)
+    if selected < 1:
+        raise ValueError("Evaluation horizon must be positive")
+    if selected > max_delta:
+        raise ValueError(f"Evaluation horizon {selected} exceeds max_delta={max_delta}")
+    if selected >= sequence_length:
+        raise ValueError(f"Evaluation horizon {selected} requires {selected + 1} states; window has {sequence_length}")
+    return selected
+
+
+def _physical_horizon(task: TaskSpec, horizon: int) -> float:
+    return float("nan") if task.time_step is None else float(horizon) * float(task.time_step)
+
 
 @torch.no_grad()
 def evaluate_diagnostics(
@@ -24,89 +132,254 @@ def evaluate_diagnostics(
     device: torch.device,
     model_name: str,
     variant: str,
-) -> Dict[str, float]:
+    *,
+    eval_horizon: Optional[int] = None,
+    seed: Optional[int] = None,
+    scaling_factor: float = 1.25,
+) -> Dict[str, Any]:
+    """Evaluate one model at one explicit horizon.
+
+    Keeping one horizon per table row avoids blending short- and long-horizon
+    behavior into an uninterpretable average.  The runner calls this function for
+    every requested horizon.
+    """
+
     model.eval()
     norm = normalizer.to(device)
-    rows: Dict[str, List[float]] = {k: [] for k in METRIC_NAMES}
-    for seq in window_loader:
-        seq = seq.to(device).float()  # B,T+1,C,*spatial
-        bsz = seq.shape[0]
-        u0 = seq[:, 0]
-        # choose k=2 if possible for semigroup/generator, else k=1
-        k = min(2, seq.shape[1] - 1, max_delta)
-        if k < 1:
-            continue
-        tau_k = batch_tau(bsz, k / max_delta, device)
-        pred_k_n = model(norm.encode(u0), tau_k)
-        pred_k = norm.decode(pred_k_n)
-        target_k = seq[:, k]
-        rows["rel_l2"].extend(rel_l2(pred_k, target_k).detach().cpu().tolist())
+    rows = _empty_rows(task)
+    applicability = _base_applicability(task)
+    selected_horizon: Optional[int] = None
 
-        # semigroup with a=b=1 if k>=2
-        if k >= 2:
-            tau_1 = batch_tau(bsz, 1 / max_delta, device)
-            mid_n = model(norm.encode(u0), tau_1)
-            comp_n = model(mid_n, tau_1)
-            direct_n = pred_k_n
-            rows["semigroup"].extend(rel_l2(norm.decode(comp_n), norm.decode(direct_n)).detach().cpu().tolist())
+    for sequence in window_loader:
+        sequence = sequence.to(device).float()
+        if not torch.isfinite(sequence).all():
+            raise FloatingPointError("Reference trajectories contain NaN or Inf")
+        batch_size = sequence.shape[0]
+        horizon = _validate_horizon(sequence.shape[1], eval_horizon, max_delta)
+        if selected_horizon is None:
+            selected_horizon = horizon
+        elif selected_horizon != horizon:
+            raise RuntimeError("A single evaluation row cannot mix horizons")
 
-            gen1 = (norm.decode(mid_n) - u0) / 1.0
-            gen2 = (pred_k - u0) / float(k)
-            num = torch.linalg.vector_norm((gen1 - gen2).flatten(1), dim=1)
-            den = torch.linalg.vector_norm(gen1.flatten(1), dim=1) + torch.linalg.vector_norm(gen2.flatten(1), dim=1) + EPS
-            rows["generator"].extend((num / den).detach().cpu().tolist())
+        initial = sequence[:, 0]
+        reference = sequence[:, horizon]
+        prediction = _predict(model, norm, initial, horizon, max_delta, device)
+        _append(rows, "rel_l2", rel_l2(prediction, reference))
+
+        if horizon >= 2:
+            first = horizon // 2
+            second = horizon - first
+            midpoint = _predict(model, norm, initial, first, max_delta, device)
+            composed = _predict(model, norm, midpoint, second, max_delta, device)
+            _append(rows, "semigroup", semigroup_error(prediction, composed))
+
+            one_step = _predict(model, norm, initial, 1, max_delta, device)
+            physical_step = float(task.time_step or 1.0)
+            _append(
+                rows,
+                "generator",
+                generator_discrepancy(
+                    initial,
+                    one_step,
+                    prediction,
+                    physical_step,
+                    horizon * physical_step,
+                ),
+            )
         else:
-            rows["semigroup"].append(float("nan")); rows["generator"].append(float("nan"))
+            _append_unavailable(rows, "semigroup", batch_size)
+            _append_unavailable(rows, "generator", batch_size)
+            applicability["semigroup"] = (False, "Semigroup evaluation requires a horizon of at least two steps.")
+            applicability["generator"] = (False, "Generator evaluation requires two distinct positive horizons.")
 
-        e0 = energy(u0, task)
-        ep = energy(pred_k, task)
-        er = energy(target_k, task)
-        # Energy-law violation detects the wrong sign of energy change.
-        # Energy-decay error detects wrong dissipation rate, including over-smoothing
-        # that remains monotone but decays too aggressively.
-        rows["energy_violation"].extend((torch.relu(ep - e0) / (e0.abs() + EPS)).detach().cpu().tolist())
-        rows["energy_decay_error"].extend(((ep - er).abs() / (er.abs() + EPS)).detach().cpu().tolist())
-        rows["integral_balance"].extend(integral_balance_error(u0, pred_k, task).detach().cpu().tolist())
-        rows["constraint"].extend(constraint_error(pred_k, task).detach().cpu().tolist())
-
-        # Perturbed references are not generally available in benchmark trajectory files.
-        # If you later add solvers, replace this NaN with true finite-perturbation response error.
-        rows["perturbation_response"].append(float("nan"))
-
-        # Scaling-law diagnostics are only valid when an exact relation is specified.
-        if task.scaling == "linear_amplitude":
-            alpha = 1.25
-            pred_scaled = norm.decode(model(norm.encode(alpha * u0), tau_k))
-            rhs = alpha * pred_k
-            rows["scaling_law"].extend(rel_l2(pred_scaled, rhs).detach().cpu().tolist())
+        _append(rows, "energy_violation", energy_law_error(initial, prediction, task))
+        _append(rows, "energy_reference_error", energy_reference_error(reference, prediction, task))
+        delta_t = horizon * float(task.time_step or 1.0)
+        _append(
+            rows,
+            "integral_balance",
+            integral_balance_error(initial, prediction, task, delta_t=delta_t),
+        )
+        _append(
+            rows,
+            "global_conserved_drift",
+            global_conserved_quantity_drift(initial, prediction, task),
+        )
+        components = constraint_errors(prediction, task)
+        for name, value in components.items():
+            _append(rows, name, value)
+        if len(components) == 1:
+            _append(rows, "constraint", next(iter(components.values())))
         else:
-            rows["scaling_law"].append(float("nan"))
+            _append_unavailable(rows, "constraint", batch_size)
 
-    return summarize_metric_rows({"model": model_name, "variant": variant, "task": task.name}, rows)
+        # Learned-trajectory benchmark files do not contain paired simulations
+        # from perturbed initial conditions.  The public API implements the
+        # metric when those four states are supplied.
+        _append_unavailable(rows, "perturbation_response", batch_size)
+
+        scale = float(scaling_factor)
+        if scale <= 0 or torch.isclose(torch.tensor(scale), torch.tensor(1.0)):
+            raise ValueError("scaling_factor must be positive and nontrivial (not 1.0)")
+        if task.scaling_transform is not None:
+            scaled_initial = task.scaling_transform(initial, scale)
+            time_factor = float(task.scaling_time_factor(scale)) if task.scaling_time_factor is not None else 1.0
+            scaled_horizon = float(horizon) * time_factor
+            scaled_index = int(round(scaled_horizon))
+            if scaled_index < 1 or not torch.isclose(
+                torch.tensor(scaled_horizon), torch.tensor(float(scaled_index)), atol=1.0e-8
+            ):
+                _append_unavailable(rows, "scaling_law", batch_size)
+                applicability["scaling_law"] = (
+                    False,
+                    "Configured time scaling does not map this discrete horizon to an integer step.",
+                )
+            elif scaled_index > max_delta:
+                _append_unavailable(rows, "scaling_law", batch_size)
+                applicability["scaling_law"] = (
+                    False,
+                    "Configured time scaling exceeds the trained maximum horizon.",
+                )
+            else:
+                prediction_of_scaled = _predict(model, norm, scaled_initial, horizon, max_delta, device)
+                base_prediction = _predict(model, norm, initial, scaled_index, max_delta, device)
+                transformed_prediction = task.scaling_transform(base_prediction, scale)
+                _append(
+                    rows,
+                    "scaling_law",
+                    scaling_law_error(prediction_of_scaled, transformed_prediction),
+                )
+        elif task.scaling == "linear_amplitude":
+            prediction_of_scaled = _predict(model, norm, scale * initial, horizon, max_delta, device)
+            _append(
+                rows,
+                "scaling_law",
+                scaling_law_error(prediction_of_scaled, scale * prediction),
+            )
+        else:
+            _append_unavailable(rows, "scaling_law", batch_size)
+
+    if selected_horizon is None:
+        raise RuntimeError("The evaluation loader produced no windows")
+
+    prefix: Dict[str, Any] = {
+        "model": model_name,
+        "variant": variant,
+        "task": task.name,
+        "seed": seed,
+        "horizon_steps": selected_horizon,
+        "horizon_time": _physical_horizon(task, selected_horizon),
+    }
+    return summarize_metric_rows(prefix, rows, applicability)
 
 
 @torch.no_grad()
-def evaluate_reference(window_loader: DataLoader, task: TaskSpec, max_delta: int, device: torch.device) -> Dict[str, float]:
-    rows: Dict[str, List[float]] = {k: [] for k in METRIC_NAMES}
-    for seq in window_loader:
-        seq = seq.to(device).float()
-        if seq.shape[1] < 3:
-            continue
-        u0, u1, u2 = seq[:, 0], seq[:, 1], seq[:, 2]
-        rows["rel_l2"].extend([0.0] * seq.shape[0])
-        rows["semigroup"].extend([0.0] * seq.shape[0])
-        gen1 = u1 - u0
-        gen2 = (u2 - u0) / 2.0
-        num = torch.linalg.vector_norm((gen1 - gen2).flatten(1), dim=1)
-        den = torch.linalg.vector_norm(gen1.flatten(1), dim=1) + torch.linalg.vector_norm(gen2.flatten(1), dim=1) + EPS
-        rows["generator"].extend((num / den).detach().cpu().tolist())
-        e0, e1 = energy(u0, task), energy(u1, task)
-        rows["energy_violation"].extend((torch.relu(e1 - e0) / (e0.abs() + EPS)).detach().cpu().tolist())
-        rows["energy_decay_error"].extend([0.0] * seq.shape[0])
-        rows["integral_balance"].extend(integral_balance_error(u0, u1, task).detach().cpu().tolist())
-        rows["constraint"].extend(constraint_error(u1, task).detach().cpu().tolist())
-    out = summarize_metric_rows({"model": "reference", "variant": "reference", "task": task.name}, rows)
-    out["best_val"] = float("nan")
-    out["best_epoch"] = float("nan")
-    return out
+def evaluate_reference(
+    window_loader: DataLoader,
+    task: TaskSpec,
+    max_delta: int,
+    device: torch.device,
+    *,
+    eval_horizon: Optional[int] = None,
+    seed: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Evaluate the stored numerical reference at one explicit horizon."""
 
+    rows = _empty_rows(task)
+    applicability = _base_applicability(task)
+    applicability["perturbation_response"] = (
+        False,
+        "Paired perturbed reference trajectories are not present in this benchmark dataset.",
+    )
+    applicability["scaling_law"] = (
+        False,
+        "Scaled reference trajectories are not present in this benchmark dataset.",
+    )
+    selected_horizon: Optional[int] = None
+
+    for sequence in window_loader:
+        sequence = sequence.to(device).float()
+        if not torch.isfinite(sequence).all():
+            raise FloatingPointError("Reference trajectories contain NaN or Inf")
+        batch_size = sequence.shape[0]
+        horizon = _validate_horizon(sequence.shape[1], eval_horizon, max_delta)
+        selected_horizon = horizon
+        initial = sequence[:, 0]
+        reference = sequence[:, horizon]
+
+        _append(rows, "rel_l2", torch.zeros(batch_size, device=device))
+        if horizon >= 2:
+            _append_unavailable(rows, "semigroup", batch_size)
+            applicability["semigroup"] = (
+                False,
+                "Stored trajectories alone do not provide an independent restarted reference evolution.",
+            )
+            physical_step = float(task.time_step or 1.0)
+            _append(
+                rows,
+                "generator",
+                generator_discrepancy(
+                    initial,
+                    sequence[:, 1],
+                    reference,
+                    physical_step,
+                    horizon * physical_step,
+                ),
+            )
+        else:
+            _append_unavailable(rows, "semigroup", batch_size)
+            _append_unavailable(rows, "generator", batch_size)
+            applicability["semigroup"] = (False, "Semigroup evaluation requires a horizon of at least two steps.")
+            applicability["generator"] = (False, "Generator evaluation requires two distinct positive horizons.")
+
+        _append(rows, "energy_violation", energy_law_error(initial, reference, task))
+        if applicability["energy_reference_error"][0]:
+            _append(rows, "energy_reference_error", torch.zeros(batch_size, device=device))
+        else:
+            _append_unavailable(rows, "energy_reference_error", batch_size)
+        _append(
+            rows,
+            "integral_balance",
+            integral_balance_error(
+                initial,
+                reference,
+                task,
+                delta_t=horizon * float(task.time_step or 1.0),
+            ),
+        )
+        _append(
+            rows,
+            "global_conserved_drift",
+            global_conserved_quantity_drift(initial, reference, task),
+        )
+        components = constraint_errors(reference, task)
+        for name, value in components.items():
+            _append(rows, name, value)
+        if len(components) == 1:
+            _append(rows, "constraint", next(iter(components.values())))
+        else:
+            _append_unavailable(rows, "constraint", batch_size)
+        _append_unavailable(rows, "perturbation_response", batch_size)
+        _append_unavailable(rows, "scaling_law", batch_size)
+
+    if selected_horizon is None:
+        raise RuntimeError("The reference loader produced no windows")
+
+    output = summarize_metric_rows(
+        {
+            "model": "reference",
+            "variant": "reference",
+            "task": task.name,
+            "seed": seed,
+            "horizon_steps": selected_horizon,
+            "horizon_time": _physical_horizon(task, selected_horizon),
+        },
+        rows,
+        applicability,
+    )
+    output["best_val"] = float("nan")
+    output["best_epoch"] = float("nan")
+    return output
+
+
+__all__ = ["evaluate_diagnostics", "evaluate_reference"]

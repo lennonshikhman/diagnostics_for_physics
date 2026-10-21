@@ -1,0 +1,24 @@
+{
+  "active2d": {
+    "train": [
+      "the_well/datasets/active_matter/data/train/active_matter_L_10.0_zeta_11.0_alpha_-2.0.hdf5"
+    ],
+    "val": [
+      "the_well/datasets/active_matter/data/valid/active_matter_L_10.0_zeta_11.0_alpha_-2.0.hdf5"
+    ],
+    "test": [
+      "the_well/datasets/active_matter/data/test/active_matter_L_10.0_zeta_11.0_alpha_-2.0.hdf5"
+    ]
+  },
+  "mhd3d": {
+    "train": [
+      "the_well/datasets/MHD_64/data/train/MHD_Ma_0.7_Ms_0.5.hdf5"
+    ],
+    "val": [
+      "the_well/datasets/MHD_64/data/valid/MHD_Ma_0.7_Ms_0.5.hdf5"
+    ],
+    "test": [
+      "the_well/datasets/MHD_64/data/test/MHD_Ma_0.7_Ms_0.5.hdf5"
+    ]
+  }
+}

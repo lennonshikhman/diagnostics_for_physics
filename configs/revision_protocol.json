@@ -1,0 +1,87 @@
+{
+  "recorded_before_confirmatory_training_utc": "2026-10-21T13:05:22.780766+00:00",
+  "controlled": {
+    "problems": [
+      "heat1d",
+      "advection1d",
+      "burgers1d"
+    ],
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "dataset_seed": 20261021,
+    "grid": 64,
+    "physics_grid": 128,
+    "train_initial_conditions": 512,
+    "validation_initial_conditions": 128,
+    "test_initial_conditions": 256,
+    "warmup_updates": 1500,
+    "continuation_updates_per_arm": 1000,
+    "batch_size": 64,
+    "validation_every": 50,
+    "physics_weight": 0.05,
+    "composition_weight": 10.0,
+    "arms": [
+      "supervised",
+      "pino",
+      "composition"
+    ],
+    "checkpoint_selection": "Minimum mean validation relative L2 over horizons T/8,T/4,T/2,T. Matched checkpoints minimize the absolute log ratio of validation error to the supervised best error, without using semigroup error or test predictions.",
+    "matching_eligibility": "Both validation errors <0.02 and their ratio between 0.8 and 1.25. Report all seeds and any failed eligibility checks.",
+    "uncertainty": "Paired crossed bootstrap of training seeds and shared test-initial-condition identities; 10000 resamples; 95 percent percentile intervals; bootstrap seed 20261021.",
+    "scope": "Controlled learned surrogate comparisons; not a reproduction of published PINO benchmark numbers.",
+    "pilot": "Separate dataset seed 20261011; validation-only pilots, excluded from all test results."
+  },
+  "external": {
+    "tasks": [
+      "adv2d",
+      "shallow2d",
+      "active2d",
+      "cns3d",
+      "mhd3d"
+    ],
+    "selection": "configs/revision_file_selection.json",
+    "selection_rule": "Fixed parameter subset chosen by lexicographic filename intersection of official splits before training.",
+    "provenance": "Raw source files copied from read-only mounted drive with matching streamed source and destination SHA-256.",
+    "models": [
+      "fno",
+      "deeponet",
+      "unet",
+      "resnet"
+    ],
+    "seeds": [
+      0,
+      1,
+      2
+    ],
+    "well_epochs": 30,
+    "underfit_epochs": 2,
+    "underfit_width_multiplier": 1.0,
+    "width": 24,
+    "modes": 8,
+    "spatial_limit_2d": 32,
+    "spatial_limit_3d": 16,
+    "max_train_pairs": 1024,
+    "max_validation_pairs": 256,
+    "max_test_windows": 128,
+    "batch_size": 16,
+    "evaluation_batch_size": 16,
+    "eval_horizons": [
+      1,
+      2,
+      4
+    ],
+    "same_initialization_between_budget_variants": true,
+    "deeponet_3d": false,
+    "interpretation": "A bounded integration/application study on regenerated inputs; comparisons are within architecture. Report seed spread descriptively; overlapping temporal windows are not independent confidence units.",
+    "recorded_before_training_utc": "2026-10-21T13:06:25.685105+00:00"
+  },
+  "source_files": {
+    "src/diagnostic_suite/controlled.py": "d1b4967dcb2df432d85010f96c276676a102534e3f963cbdd4ca351aab8fedb6",
+    "configs/revision_file_selection.json": "b5f0ab1640a8d6903dbe77d47a533ddd1880c32355b6abc072e8aacccad0f349"
+  }
+}
