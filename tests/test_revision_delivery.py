@@ -80,3 +80,10 @@ def test_pdf_equivalence_ignores_word_hyphenation_but_preserves_numeric_and_alge
     assert module.equivalent_text(first) == module.equivalent_text(second)
     assert module.equivalent_text(first) != module.equivalent_text(second.replace("1-2", "1+2"))
     assert "x-y" in module.equivalent_text(first)
+    colors = {"(0.0,)": 300, "(0.0, 0.27452, 0.66667)": 1500}
+    revised = {"color_counts": colors, "pages": [{"colors": colors}, {"colors": colors}, {"colors": colors}]}
+    # A newly revised introduction is blue; protected identity text stays black.
+    module.validate_revision_colors(revised)
+    revised["pages"][0] = {"colors": {"(0.0, 0.27452, 0.66667)": 1800}}
+    with pytest.raises(ValueError, match="protected"):
+        module.validate_revision_colors(revised)

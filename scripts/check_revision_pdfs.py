@@ -15,6 +15,19 @@ def equivalent_text(text):
     return re.sub(r"(?<=[A-Za-z]{2})-\s*(?=[A-Za-z]{2})", "", text)
 
 
+def validate_revision_colors(marked):
+    def blue(color):
+        return "0.275" in color or "0.27452" in color
+
+    if not any(blue(color) for color in marked["color_counts"]):
+        raise ValueError("Marked PDF has no requested blue text")
+    first_colors = marked["pages"][0]["colors"]
+    if sum(count for color, count in first_colors.items() if blue(color)) < 1000:
+        raise ValueError("The revised abstract was not colored inside its stored front-matter box")
+    if first_colors.get("(0.0,)", 0) < 100:
+        raise ValueError("Revision color affected protected title, author or affiliation text")
+
+
 def inspect(path):
     import pdfplumber
 
@@ -73,13 +86,7 @@ def main():
     ) == equivalent_text(texts["main_marked"])
     if not results["clean_marked_content_equivalent_after_word_hyphenation_normalization"]:
         raise ValueError("Clean and marked manuscript content differs")
-    if not any("0.275" in color or "0.27452" in color for color in results["main_marked"]["color_counts"]):
-        raise ValueError("Marked PDF has no requested blue text")
-    first_colors = results["main_marked"]["pages"][0]["colors"]
-    if sum(count for color, count in first_colors.items() if "0.275" in color or "0.27452" in color) < 1000:
-        raise ValueError("The revised abstract was not actually colored inside its stored front-matter box")
-    if results["main_marked"]["pages"][2]["colors"].get("(0.0,)", 0) < 1000:
-        raise ValueError("Abstract color leaked into the unchanged introduction")
+    validate_revision_colors(results["main_marked"])
     results["marking"] = json.loads((args.paper / "revision_evidence/marked_changes.json").read_text())
     target = args.paper / "validation_20261021/pdf_structure_checks.json"
     target.parent.mkdir(exist_ok=True)
