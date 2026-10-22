@@ -25,8 +25,8 @@ See the [PyPI instructions for creating a project with trusted publishing](https
 ## Release workflow
 
 Build and validate a new version, commit it, and create its matching `vX.Y.Z`
-tag. Publishing the GitHub release triggers `.github/workflows/pypi.yml`.
-The workflow checks the tag against the distribution metadata, builds both
+tag, then publish the GitHub release. Run `.github/workflows/pypi.yml` manually
+and enter that tag. The workflow checks the tag against the distribution metadata, builds both
 distributions, checks their metadata and contents, tests the installed wheel
 outside the checkout, and publishes with the `pypi` environment identity.
 
