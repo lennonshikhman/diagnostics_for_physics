@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.3
+
+- Name the software PDECheck and use `pdecheck` as the distribution name and
+  primary command. Preserve `diagnostic_suite` imports and both existing main
+  command aliases; verify all three installed commands in regression tests.
+- Add a GitHub trusted-publishing workflow and PyPI account setup instructions.
+- Update the manuscript title, software metadata, and citation metadata to use
+  PDECheck. Diagnostic kernels and experimental results are unchanged.
+
 ## 0.3.2
 
 - Copy ranked arrays before centering so Spearman analysis works with pandas

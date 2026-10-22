@@ -1,9 +1,9 @@
-"""Diagnostic Suite for learned PDE time propagators."""
+"""PDECheck diagnostics for learned PDE time propagators."""
 
 from .constants import EPS
 from .tasks import BalanceSpec, ConstraintSpec, TaskSpec, build_all_task_specs, build_task_specs
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 
 _LAZY_EXPORTS = {
     "AutoregressivePropagator": ("diagnostic_suite.propagators", "AutoregressivePropagator"),

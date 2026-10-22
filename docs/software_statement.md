@@ -1,7 +1,7 @@
 # Software statement
 
-This repository provides diagnostic consistency tests for learned PDE time
-propagators. Version 0.3.2 accompanies the manuscript revision. Independent
+PDECheck provides diagnostic consistency tests for learned PDE time
+propagators. Version 0.3.3 accompanies the manuscript revision. Independent
 analytic/manufactured checks, a five-seed controlled learned-model study, and
 regenerated fixed-parameter external applications provide separate evidence.
 Historical tables are not reassigned to changed implementations.

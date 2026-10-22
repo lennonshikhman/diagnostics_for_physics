@@ -49,6 +49,8 @@ jobs:
         run: |
           cd "$RUNNER_TEMP"
           python -m pytest "$GITHUB_WORKSPACE/tests" -c "$GITHUB_WORKSPACE/pyproject.toml"
+          pdecheck --version
+          pdecheck --self-check
           diagnostic-suite --version
           diagnostic-suite --self-check
           diagnostic-suite-referee --outdir referee

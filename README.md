@@ -1,6 +1,6 @@
-# Diagnostics for Physics
+# PDECheck
 
-Python package for diagnostic consistency testing of learned PDE time propagators. Version 0.3.2 accompanies the revised Computer Physics Communications manuscript.
+Python package for diagnostic consistency testing of learned PDE time propagators. Version 0.3.3 accompanies the revised Computer Physics Communications manuscript.
 
 `diagnostic_suite` evaluates learned PDE simulators as approximate **time-propagation operators**, not only as predictors of discretized state fields. The package provides a lightweight public API, a command-line interface, toy dataset generation, benchmark readers, neural surrogate baselines, diagnostic metrics, tests, and reproducibility scripts.
 
@@ -53,6 +53,17 @@ disappear from an average. Float64 inputs retain their precision.
 ```
 
 ## Installation
+
+The distribution name is `pdecheck`. Install a published release with:
+
+```bash
+python -m pip install pdecheck
+pdecheck --self-check
+```
+
+Python imports continue to use `diagnostic_suite`. The `diagnostic-suite` and
+`diagnostics-for-physics` commands remain available. See
+[publishing instructions](docs/publishing.md) for release configuration.
 
 Requires Python 3.10 or newer, NumPy 1.23.5+, pandas 1.5.3+, h5py 3.8+,
 and PyTorch 2.0.1+. A GPU is optional. From the repository root:
@@ -373,7 +384,7 @@ Please cite the accompanying manuscript using the following placeholder BibTeX e
 ```bibtex
 @misc{shikhman2026diagnosticsuite,
   author = {Shikhman, Lennon J.},
-  title = {A Diagnostic Software Suite for Auditing Learned PDE Simulators},
+  title = {PDECheck: A Diagnostic Software Suite for Auditing Learned PDE Simulators},
   year = {2026},
   note = {Manuscript},
   url = {https://github.com/lennonshikhman/diagnostics_for_physics}

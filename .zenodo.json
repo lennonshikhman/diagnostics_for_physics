@@ -1,10 +1,10 @@
 {
-  "title": "Diagnostics for Physics: Diagnostic consistency tests for learned PDE time propagators",
+  "title": "PDECheck: Diagnostic consistency tests for learned PDE time propagators",
   "upload_type": "software",
   "description": "Versioned software for equation-aware audits of learned PDE propagators, with analytic verification, reproducible checkpoint-only rollout analysis, and explicit applicability and provenance.",
   "creators": [{"name": "Shikhman, Lennon J.", "affiliation": "Georgia Institute of Technology; Florida Institute of Technology"}],
   "license": "MIT",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "publication_date": "2026-10-21",
   "keywords": ["neural operators", "PDE simulators", "numerical diagnostics", "semigroup consistency"]
 }

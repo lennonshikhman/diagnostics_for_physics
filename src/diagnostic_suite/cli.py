@@ -21,8 +21,8 @@ def _task_name(value: str) -> str:
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        prog="diagnostic-suite",
-        description="Run diagnostic consistency experiments for learned PDE time propagators.",
+        prog="pdecheck",
+        description="PDECheck: diagnostic consistency tests for learned PDE time propagators.",
     )
     p.add_argument("--version", action="version", version=f"%(prog)s {__version__}")
     p.add_argument(

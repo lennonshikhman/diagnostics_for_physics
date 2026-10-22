@@ -1,0 +1,81 @@
+name: Publish PDECheck to PyPI
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to publish, for example v0.3.3
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pdecheck-pypi
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      OMP_NUM_THREADS: "1"
+      MKL_NUM_THREADS: "1"
+      OPENBLAS_NUM_THREADS: "1"
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Check release tag and distribution identity
+        run: |
+          python - <<'PY'
+          import os, tomllib
+          from pathlib import Path
+          project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
+          assert project["name"] == "pdecheck"
+          assert os.environ["RELEASE_TAG"] == "v" + project["version"]
+          PY
+      - name: Build and inspect distributions
+        run: |
+          python -m pip install --upgrade build twine pytest
+          python -m build
+          python scripts/check_distributions.py dist
+          python -m twine check --strict dist/*
+      - name: Install CPU dependencies and built wheel
+        run: |
+          python -m pip install numpy pandas h5py
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install --no-deps dist/*.whl
+      - name: Validate installed wheel outside checkout
+        run: |
+          cd "$RUNNER_TEMP"
+          python -m pytest "$GITHUB_WORKSPACE/tests" -c "$GITHUB_WORKSPACE/pyproject.toml"
+          pdecheck --version
+          pdecheck --self-check
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pdecheck-distributions
+          path: dist/*
+          if-no-files-found: error
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/pdecheck/
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: pdecheck-distributions
+          path: dist/
+      - name: Publish to PyPI using trusted publishing
+        uses: pypa/gh-action-pypi-publish@release/v1

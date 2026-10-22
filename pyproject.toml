@@ -3,8 +3,8 @@ requires = ["setuptools>=77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "diagnostics-for-physics"
-version = "0.3.2"
+name = "pdecheck"
+version = "0.3.3"
 description = "Diagnostic consistency tests for learned PDE time propagators"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -48,6 +48,7 @@ dev = [
 ]
 
 [project.scripts]
+pdecheck = "diagnostic_suite.cli:main"
 diagnostic-suite = "diagnostic_suite.cli:main"
 diagnostics-for-physics = "diagnostic_suite.cli:main"
 diagnostic-suite-tables = "diagnostic_suite.tables:main"
